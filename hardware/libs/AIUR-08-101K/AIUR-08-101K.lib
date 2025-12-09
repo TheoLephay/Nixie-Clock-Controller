@@ -1,0 +1,25 @@
+EESchema-LIBRARY Version 2.3
+#encoding utf-8
+#SamacSys ECAD Model AIUR-08-101K
+#/12849225/1810537/2.50/4/2/Crystal or Oscillator
+DEF AIUR-08-101K Y 0 30 Y Y 1 F N
+F0 "Y" 650 300 50 H V L CNN
+F1 "AIUR-08-101K" 650 200 50 H V L CNN
+F2 "AIUR-08" 650 100 50 H I L CNN
+F3 "https://abracon.com/Magnetics/radial/AIUR-08.pdf" 650 0 50 H I L CNN
+F4 "100H Unshielded Wirewound Inductor 1.7A 160mOhm Max Radial, Vertical Cylinder" 650 -100 50 H I L CNN "Description"
+F5 "11.5" 650 -200 50 H I L CNN "Height"
+F6 "815-AIUR-08-101K" 650 -300 50 H I L CNN "Mouser Part Number"
+F7 "https://www.mouser.co.uk/ProductDetail/ABRACON/AIUR-08-101K?qs=C7smiywbPwWyh9QznYiM6Q%3D%3D" 650 -400 50 H I L CNN "Mouser Price/Stock"
+F8 "ABRACON" 650 -500 50 H I L CNN "Manufacturer_Name"
+F9 "AIUR-08-101K" 650 -600 50 H I L CNN "Manufacturer_Part_Number"
+DRAW
+X 1 1 0 -100 200 R 50 50 0 0 P
+X 2 2 0 0 200 R 50 50 0 0 P
+X 3 3 800 0 200 L 50 50 0 0 P
+X 4 4 800 -100 200 L 50 50 0 0 P
+P 5 0 1 6 200 100 600 100 600 -200 200 -200 200 100 N
+ENDDRAW
+ENDDEF
+#
+#End Library

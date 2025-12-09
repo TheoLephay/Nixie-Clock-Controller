@@ -1,0 +1,9 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP PMV37ENEAR
+D MOSFET 60V N-CHANNEL
+K
+F https://assets.nexperia.com/documents/data-sheet/PMV37ENEA.pdf
+$ENDCMP
+#
+#End Doc Library

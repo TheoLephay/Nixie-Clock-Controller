@@ -1,0 +1,9 @@
+EESchema-DOCLIB  Version 2.0
+#
+$CMP AIUR-08-101K
+D 100H Unshielded Wirewound Inductor 1.7A 160mOhm Max Radial, Vertical Cylinder
+K
+F https://abracon.com/Magnetics/radial/AIUR-08.pdf
+$ENDCMP
+#
+#End Doc Library
