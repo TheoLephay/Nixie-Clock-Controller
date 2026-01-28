@@ -2,3 +2,5 @@ hardware/Nixie_clock/Nixie_clock-backups/*
 hardware/datasheets/*
 hardware/gerber/*
 *.rar
+software/build/*
+.vscode
