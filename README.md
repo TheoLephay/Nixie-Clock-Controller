@@ -1,6 +1,7 @@
 # Nixie clock - Divergence Meter
 
-WIP, hardware ordered.
+WIP
+
 I Wanted to make a design close to Steins Gate's divergence meter.
 Most of the features will come from software (esp32 - web configuration interface).
 
@@ -20,4 +21,6 @@ The feedback line of the DCDC is picking up noise which creates a visible dimmin
 
 ## Software
 
-soon
+- Using ESP-IDF
+- Programming via UART
+- more soon
