@@ -17,7 +17,12 @@ Most of the features will come from software (esp32 - web configuration interfac
 
 Fixed HV5622 footprint, used a bigger DCDC FET (>250V), Reduced GPIO9 cap size to avoid starting in DL mode, and added PD resistors to the level shifters' NFETs.
 
-The feedback line of the DCDC is picking up noise which creates a visible dimming oscillation at around 20Hz. It is fixable by adding a small cap on FB pin but it adds a real charm to the light so I'm keeping it.
+### Issues
+
+The feedback line of the DCDC is picking up noise which creates a visible dimming oscillation at around 20Hz (50Vpp). At high load it even makes the DCDC saturate.
+I fixed it by adding a small cap (100pF) on FB pin. 0603 size is perfect to sit between SHDN and FB pins of the MAX1771.
+
+My DCDC has only a ~70% efficiency which is not super good compared to the original design (85%), I probably did a poor layout job. But in practice it does not matter since currents involved are small.
 
 ## Software
 

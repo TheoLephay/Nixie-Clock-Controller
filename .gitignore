@@ -10,3 +10,4 @@ hardware/Nixie_clock/sym-lib-table
 hardware/*.zip
 hardware/Nixie_clock/*.lck
 hardware/bom.csv
+managed_components/
