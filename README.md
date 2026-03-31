@@ -26,6 +26,6 @@ My DCDC has only a ~70% efficiency which is not super good compared to the origi
 
 ## Software
 
-- Using ESP-IDF
+- Using ESP-IDF VSCode extension v5.2.1
 - Programming via UART
 - more soon

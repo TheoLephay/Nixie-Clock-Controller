@@ -133,7 +133,7 @@ static void Connectivity_WifiEventHandler(int32_t event_id, void* event_data)
             ESP_LOGI(TAG, "WIFI_EVENT_STA_DISCONNECTED");
             switch (connectivityState)
             {
-                case STA_CONNECTING: // explicit fallthrough
+                case STA_CONNECTING: // intended fallthrough
                 case STA_CONNECTED:
                 {
                     if (connRetryNum < WIFI_MAX_RETRY)
