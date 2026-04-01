@@ -14,10 +14,8 @@
 #include "SmartClock.h"
 #include "esp_err.h"
 #include "NixieHttpServer.h"
-
-
-#define WIFI_SSID      "gas_gas_gaaas" // "Theo"
-#define WIFI_PASS      "Tl04Bg&Z$xwz@p" // "yoloswag"
+#include "Storage.h"
+#include "esp_timer.h"
 
 
 static const char *TAG = "Connectivity";
@@ -56,23 +54,24 @@ static void Connectivity_StartMdns()
     ESP_ERROR_CHECK(mdns_service_add("ESP32-WebServer", "_http", "_tcp", 80, NULL, 0));
 }
 
-static void connectivity_WifiStartSta()
+static void Connectivity_WifiStartSta(const WifiCredentials_t *creds)
 {
-    wifi_config_t wifi_config = {
+    wifi_config_t wifiConfig = {
         .sta = {
-            .ssid = WIFI_SSID,
-            .password = WIFI_PASS,
             .threshold.authmode = WIFI_AUTH_WPA2_PSK,
         },
     };
+    strlcpy((char*) wifiConfig.sta.ssid, creds->ssid, sizeof(wifiConfig.sta.ssid));
+    strlcpy((char*) wifiConfig.sta.password, creds->password, sizeof(wifiConfig.sta.password));
+
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifiConfig));
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
 void connectivity_WifiStartAp()
 {
-    wifi_config_t wifi_config = {
+    wifi_config_t wifiConfig = {
         .ap = {
             .ssid = WIFI_AP_SSID,
             .ssid_len = strlen(WIFI_AP_SSID),
@@ -84,8 +83,40 @@ void connectivity_WifiStartAp()
     };
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifiConfig));
     ESP_ERROR_CHECK(esp_wifi_start());
+}
+
+static void Connectivity_Reboot()
+{
+    esp_restart();
+}
+
+esp_timer_handle_t rebootTimerHandle = { 0 };
+esp_timer_create_args_t rebootTimerData = {
+    .callback = Connectivity_Reboot,
+    .arg = NULL,
+    .name = "rebootTimerData",
+    .skip_unhandled_events = true,
+};
+
+void Connectivity_NotifyNewCredentials()
+{
+    // Temporarily: start a timer to reboot. To circumvent a stop/start race condition with the current state machine.
+    esp_timer_create(&rebootTimerData, &rebootTimerHandle);
+    esp_timer_start_once(rebootTimerHandle, 1000000);
+    return;
+
+    // we could support reconnection to another AP in STA_CONNECTED but it requires changes to the state machine.
+    switch (connectivityState)
+    {
+    case AP_PROVISIONING:
+        ESP_LOGI(TAG, "New credentials received, stopping AP and trying to connect...");
+        esp_wifi_stop();
+    break;
+    default:
+    break;
+    }
 }
 
 static void Connectivity_WifiEventHandler(int32_t event_id, void* event_data)
@@ -194,6 +225,36 @@ static void Connectivity_WifiEventHandler(int32_t event_id, void* event_data)
         }
         break;
 
+        case WIFI_EVENT_AP_STOP:
+        {
+            ESP_LOGI(TAG, "WIFI_EVENT_AP_STOP");
+            switch (connectivityState)
+            {
+                case AP_PROVISIONING:
+                {
+                    WifiCredentials_t credentials = {0};
+                    if (ESP_OK == Storage_GetCredentials(&credentials))
+                    {
+                        // Temporarily disable the feature to reboot instead.
+                        // connectivityState = STA_CONNECTING;
+                        // esp_netif_destroy_default_wifi(netif);
+                        // netif = esp_netif_create_default_wifi_sta();
+                        // Connectivity_WifiStartSta(&credentials);
+                    }
+                    else
+                    {
+                        ESP_LOGE(TAG, "FATAL: Failed to get credentials after AP provisioning");
+                    }
+                }
+                break;
+
+                default:
+                    ESP_LOGW(TAG, "Wrong state %u", connectivityState);
+                break;
+            }
+        }
+        break;
+
         default:
             ESP_LOGI(TAG, "Unhandled WiFi event, id=%ld", event_id);
         break;
@@ -234,7 +295,6 @@ static void Connectivity_EventHandler(void* arg, esp_event_base_t event_base,
     {
         ESP_LOGI(TAG, "Unhandled event base %s\n", event_base);
     }
-
 }
 
 
@@ -278,8 +338,20 @@ void Connectivity_Init(void)
     // Init Wifi memory and handlers
     Connectivity_InitWifi();
 
-    netif = esp_netif_create_default_wifi_sta();
-
-    // Start STA and try to connect. If it fails connecting, AP will be created from the event handler
-    connectivity_WifiStartSta();
+    WifiCredentials_t credentials = {0};
+    if (ESP_OK != Storage_GetCredentials(&credentials))
+    {
+        ESP_LOGI(TAG, "No wifi credentials found, starting AP for provisioning");
+        connectivityState = AP_PROVISIONING_SETUP;
+        netif = esp_netif_create_default_wifi_ap();
+        connectivity_WifiStartAp();
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Try connection with saved credentials");
+        connectivityState = STA_CONNECTING;
+        // Start STA and try to connect. If it fails connecting, AP will be created from the event handler
+        netif = esp_netif_create_default_wifi_sta();
+        Connectivity_WifiStartSta(&credentials);
+    }
 }

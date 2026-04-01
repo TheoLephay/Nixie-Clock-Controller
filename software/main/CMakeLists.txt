@@ -5,6 +5,7 @@ set(sources
     src/SmartClock.c
     src/Connectivity.c
     src/NixieHttpServer.c
+    src/Storage.c
     )
 
 set(include_dirs "includes/")
