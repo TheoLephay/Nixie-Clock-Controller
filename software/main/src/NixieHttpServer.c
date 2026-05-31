@@ -16,7 +16,7 @@ esp_err_t post_new_wifi_handler(httpd_req_t *req);
 
 
 /**
- * @brief URL-decode a string in-place.
+ * @brief URL-decode a string in-place (AI-Generated).
  * Replaces %XX sequences with their corresponding characters,
  * and '+' with spaces.
  * @param str The string to decode (modified in-place).
@@ -108,8 +108,7 @@ esp_err_t post_new_wifi_handler(httpd_req_t *req) {
 
         httpd_resp_sendstr(req, "Got new credentials, trying to connect...");
 
-        // TODO: start STA again.
-        Connectivity_NotifyNewCredentials();
+        Connectivity_QueueEvent(CONNECTIVITY_NEW_CREDENTIALS_RECEIVED);
     }
     else
     {

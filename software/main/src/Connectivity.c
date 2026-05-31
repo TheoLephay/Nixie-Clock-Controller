@@ -24,6 +24,10 @@ static esp_netif_t* netif = NULL;
 
 static ConnectivityState_t connectivityState = STA_CONNECTING;
 
+QueueHandle_t connectivityQueue;
+
+ESP_EVENT_DEFINE_BASE(CONNECTIVITY_EVENT);
+
 
 static void Connectivity_TimeUpdateCb(struct timeval *tv)
 {
@@ -100,24 +104,6 @@ esp_timer_create_args_t rebootTimerData = {
     .skip_unhandled_events = true,
 };
 
-void Connectivity_NotifyNewCredentials()
-{
-    // Temporarily: start a timer to reboot. To circumvent a stop/start race condition with the current state machine.
-    esp_timer_create(&rebootTimerData, &rebootTimerHandle);
-    esp_timer_start_once(rebootTimerHandle, 1000000);
-    return;
-
-    // we could support reconnection to another AP in STA_CONNECTED but it requires changes to the state machine.
-    switch (connectivityState)
-    {
-    case AP_PROVISIONING:
-        ESP_LOGI(TAG, "New credentials received, stopping AP and trying to connect...");
-        esp_wifi_stop();
-    break;
-    default:
-    break;
-    }
-}
 
 static void Connectivity_WifiEventHandler(int32_t event_id, void* event_data)
 {
@@ -230,16 +216,15 @@ static void Connectivity_WifiEventHandler(int32_t event_id, void* event_data)
             ESP_LOGI(TAG, "WIFI_EVENT_AP_STOP");
             switch (connectivityState)
             {
-                case AP_PROVISIONING:
+                case AP_STOPPING:
                 {
                     WifiCredentials_t credentials = {0};
                     if (ESP_OK == Storage_GetCredentials(&credentials))
                     {
-                        // Temporarily disable the feature to reboot instead.
-                        // connectivityState = STA_CONNECTING;
-                        // esp_netif_destroy_default_wifi(netif);
-                        // netif = esp_netif_create_default_wifi_sta();
-                        // Connectivity_WifiStartSta(&credentials);
+                        connectivityState = STA_CONNECTING;
+                        esp_netif_destroy_default_wifi(netif);
+                        netif = esp_netif_create_default_wifi_sta();
+                        Connectivity_WifiStartSta(&credentials);
                     }
                     else
                     {
@@ -279,24 +264,52 @@ static void Connectivity_IpEventHandler(int32_t event_id, void* event_data)
     }
 }
 
-static void Connectivity_EventHandler(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data)
+static void Connectivity_ConnectivityEventHandler(int32_t event_id)
 {
+    switch (event_id)
+    {
+        case CONNECTIVITY_NEW_CREDENTIALS_RECEIVED:
+            ESP_LOGI(TAG, "CONNECTIVITY_NEW_CREDENTIALS_RECEIVED");
+            switch (connectivityState)
+            {
+                case AP_PROVISIONING:
+                    ESP_LOGI(TAG, "New credentials received, stopping AP and trying to connect...");
+                    connectivityState = AP_STOPPING;
+                    esp_wifi_stop();
+                break;
 
-    if (event_base == WIFI_EVENT)
-    {
-        Connectivity_WifiEventHandler(event_id, event_data);
-    }
-    else if (event_base == IP_EVENT)
-    {
-        Connectivity_IpEventHandler(event_id, event_data);
-    }
-    else
-    {
-        ESP_LOGI(TAG, "Unhandled event base %s\n", event_base);
+                default:
+                    ESP_LOGW(TAG, "Wrong state %u", connectivityState);
+                break;
+            }
+        break;
+
+        default:
+            ESP_LOGI(TAG, "Unhandled connectivity event, id=%ld", event_id);
+        break;
     }
 }
 
+static void Connectivity_QueueEventInternal(void* arg, esp_event_base_t eventBase,
+                                int32_t eventId, void* eventData)
+{
+    ConnectivityEvent_t msg = {0};
+    msg.eventBase = eventBase;
+    msg.eventId = eventId;
+    msg.eventData = eventData;
+
+    BaseType_t xStatus = xQueueSendToBack(connectivityQueue, &msg, 0);
+
+    if (xStatus != pdPASS)
+    {
+        ESP_LOGE(TAG, "Failed to post event to queue");
+    }
+}
+
+void Connectivity_QueueEvent(int32_t eventId)
+{
+    Connectivity_QueueEventInternal(NULL, CONNECTIVITY_EVENT, eventId, NULL);
+}
 
 void Connectivity_InitWifi(void)
 {
@@ -306,12 +319,12 @@ void Connectivity_InitWifi(void)
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                         ESP_EVENT_ANY_ID,
-                                                        &Connectivity_EventHandler,
+                                                        &Connectivity_QueueEventInternal,
                                                         NULL,
                                                         NULL));
     ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
                                                         IP_EVENT_STA_GOT_IP,
-                                                        &Connectivity_EventHandler,
+                                                        &Connectivity_QueueEventInternal,
                                                         NULL,
                                                         NULL));
 }
@@ -319,6 +332,8 @@ void Connectivity_InitWifi(void)
 
 void Connectivity_Init(void)
 {
+    connectivityQueue = xQueueCreate(5, sizeof(ConnectivityEvent_t));
+
     // Init NVS, netif & event loop for wifi and sntp
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -337,7 +352,10 @@ void Connectivity_Init(void)
 
     // Init Wifi memory and handlers
     Connectivity_InitWifi();
+}
 
+static void Connectivity_Start(void)
+{
     WifiCredentials_t credentials = {0};
     if (ESP_OK != Storage_GetCredentials(&credentials))
     {
@@ -353,5 +371,39 @@ void Connectivity_Init(void)
         // Start STA and try to connect. If it fails connecting, AP will be created from the event handler
         netif = esp_netif_create_default_wifi_sta();
         Connectivity_WifiStartSta(&credentials);
+    }
+}
+
+
+void Connectivity_Task(void* arg)
+{
+    ConnectivityEvent_t msg;
+
+    Connectivity_Start();
+
+    while (1)
+    {
+        BaseType_t xStatus = xQueueReceive(connectivityQueue, &msg, portMAX_DELAY);
+        if (xStatus == pdFAIL)
+        {
+            continue;
+        }
+
+        if (msg.eventBase == WIFI_EVENT)
+        {
+            Connectivity_WifiEventHandler(msg.eventId, msg.eventData);
+        }
+        else if (msg.eventBase == IP_EVENT)
+        {
+            Connectivity_IpEventHandler(msg.eventId, msg.eventData);
+        }
+        else if (msg.eventBase == CONNECTIVITY_EVENT)
+        {
+            Connectivity_ConnectivityEventHandler(msg.eventId);
+        }
+        else
+        {
+            ESP_LOGI(TAG, "Unhandled event base %s\n", msg.eventBase);
+        }
     }
 }

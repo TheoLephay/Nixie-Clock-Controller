@@ -28,7 +28,7 @@ void app_main(void)
         &clockTaskHandle
     );
     if (ret != pdPASS){
-        printf("main task creation failed");
+        printf("clock task creation failed");
         esp_restart();
     }
 
@@ -41,7 +41,20 @@ void app_main(void)
         &switchTaskHandle
     );
     if (ret != pdPASS){
-        printf("main task creation failed");
+        printf("modeSwitch task creation failed");
         esp_restart();
     }
+
+    ret = xTaskCreate(
+        Connectivity_Task,
+        "Connectivity_Task",
+        2048,
+        NULL,
+        4,
+        NULL);
+    if (ret != pdPASS){
+        printf("connectivity task creation failed");
+        esp_restart();
+    }
+
 }
