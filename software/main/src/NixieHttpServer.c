@@ -4,15 +4,18 @@
 #include "esp_log.h"
 #include "Connectivity.h"
 #include "Storage.h"
+#include "SmartClock.h"
 #include <ctype.h>
 
 static const char *TAG = "Nixie HTTP";
 
 static httpd_handle_t server = NULL;
 const char WIFI_FORM_STR[];
+const char ROOT_HTML[];
 
-esp_err_t get_wifi_form_handler(httpd_req_t *req);
-esp_err_t post_new_wifi_handler(httpd_req_t *req);
+esp_err_t NixieHttpServer_GetWifiFormHandler(httpd_req_t *req);
+esp_err_t NixieHttpServer_NewWifiHandler(httpd_req_t *req);
+esp_err_t NixieHttpServer_ClockModeHandler(httpd_req_t *req);
 
 
 /**
@@ -47,51 +50,53 @@ static char* url_decode(char *str) {
     return str;
 }
 
-esp_err_t hello_get_handler(httpd_req_t *req)
-{
-    const char* resp_str = "<h1>Hello World!</h1><p>From Switzerland :)</p>";
-    httpd_resp_send(req, resp_str, strlen(resp_str));
-    return ESP_OK;
+esp_err_t NixieHttpServer_RootHandler(httpd_req_t *req)
+{    httpd_resp_set_type(req, "text/html");
+    return httpd_resp_send(req, ROOT_HTML, strlen(ROOT_HTML));
 }
 
 void NixieHttpServer_start(void)
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 
-
     ESP_LOGI(TAG, "Web server start on port %d", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
         httpd_uri_t hello = {
             .uri       = "/",
             .method    = HTTP_GET,
-            .handler   = hello_get_handler,
+            .handler   = NixieHttpServer_RootHandler,
             .user_ctx  = NULL
         };
         httpd_register_uri_handler(server, &hello);
 
         httpd_uri_t wifi_form = {
-            .uri      = "/wifiForm",
+            .uri      = "/wifiform",
             .method   = HTTP_GET,
-            .handler  = get_wifi_form_handler,
+            .handler  = NixieHttpServer_GetWifiFormHandler,
             .user_ctx = NULL
         };
         httpd_register_uri_handler(server, &wifi_form);
 
         httpd_uri_t new_wifi = {
-            .uri      = "/newWifi",
+            .uri      = "/newwifi",
             .method   = HTTP_POST,
-            .handler  = post_new_wifi_handler,
+            .handler  = NixieHttpServer_NewWifiHandler,
             .user_ctx = NULL
         };
         httpd_register_uri_handler(server, &new_wifi);
+
+        httpd_uri_t clock_mode = {
+            .uri      = "/clockmode",
+            .method   = HTTP_POST,
+            .handler  = NixieHttpServer_ClockModeHandler,
+            .user_ctx = NULL
+        };
+        httpd_register_uri_handler(server, &clock_mode);
     }
 }
 
 
-
-
-
-esp_err_t post_new_wifi_handler(httpd_req_t *req) {
+esp_err_t NixieHttpServer_NewWifiHandler(httpd_req_t *req) {
     char buf[128];
     int ret = httpd_req_recv(req, buf, MIN(req->content_len, sizeof(buf)));
     if (ret <= 0) return ESP_FAIL;
@@ -118,26 +123,124 @@ esp_err_t post_new_wifi_handler(httpd_req_t *req) {
 }
 
 
-esp_err_t get_wifi_form_handler(httpd_req_t *req) {
+esp_err_t NixieHttpServer_ClockModeHandler(httpd_req_t *req) {
+    xTaskNotify(clockTaskHandle, NTF_CHANGE_MODE_MSK, eSetBits);
+    httpd_resp_set_status(req, "303 See Other");
+    httpd_resp_set_hdr(req, "Location", "/");
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
+esp_err_t NixieHttpServer_GetWifiFormHandler(httpd_req_t *req) {
     httpd_resp_set_type(req, "text/html");
     return httpd_resp_sendstr(req, WIFI_FORM_STR);
 }
 
 
-
 const char WIFI_FORM_STR[] =
-    "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1.0'>"
+"<!DOCTYPE html>"
+"<html>"
+"<head>"
+    "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
     "<style>"
-    "body { font-family: Arial, sans-serif; padding:20px; margin:0; }"
-    "form { max-width:400px; margin:auto; display:flex; flex-direction:column; gap:12px; }"
-    "input { padding:12px; font-size:16px; border:1px solid #ccc; border-radius:8px; width:100%; box-sizing:border-box; }"
-    "input[type=submit] { background:#007bff; color:white; border:none; cursor:pointer; }"
-    "input[type=submit]:hover { background:#0056b3; }"
-    "</style></head><body>"
-    "<h2 style='text-align:center;'>WiFi wonfiguration</h2>"
-    "<form method='POST' action='/newWifi'>"
-    "<input name='ssid' placeholder='SSID'>"
-    "<input name='password' type='password' placeholder='Password'>"
-    "<input type='submit' value='Connect'>"
+        "body {"
+            "font-family: Arial, sans-serif;"
+            "padding: 20px;"
+            "margin: 0;"
+        "}"
+        "form {"
+            "max-width: 400px;"
+            "margin: auto;"
+            "display: flex;"
+            "flex-direction: column;"
+            "gap: 12px;"
+        "}"
+        "input {"
+            "padding: 12px;"
+            "font-size: 16px;"
+            "border: 1px solid #ccc;"
+            "border-radius: 8px;"
+            "width: 100%;"
+            "box-sizing: border-box;"
+        "}"
+        "input[type=submit] {"
+            "background: #007bff;"
+            "color: white;"
+            "border: none;"
+            "cursor: pointer;"
+        "}"
+        "input[type=submit]:hover {"
+            "background: #0056b3;"
+        "}"
+        ".back-button {"
+            "width: 100px;"
+            "padding: 8px 12px;"
+            "font-size: 14px;"
+            "margin: 0;"
+        "}"
+        ".back-form {"
+            "max-width: none;"
+            "margin: 0;"
+            "width: fit-content;"
+        "}"
+    "</style>"
+"</head>"
+"<body>"
+    "<form method='GET' action='/' class='back-form'>"
+        "<input type='submit' value='Back' class='back-button'>"
     "</form>"
-    "</body></html>";
+    "<h2 style='text-align:center;'>WiFi Configuration</h2>"
+    "<form method='POST' action='/newwifi'>"
+        "<input name='ssid' placeholder='SSID'>"
+        "<input name='password' type='password' placeholder='Password'>"
+        "<input type='submit' value='Connect'>"
+    "</form>"
+"</body>"
+"</html>";
+
+const char ROOT_HTML[] =
+"<!DOCTYPE html>"
+"<html>"
+"<head>"
+    "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
+    "<style>"
+        "body {"
+            "font-family: Arial, sans-serif;"
+            "padding: 20px;"
+            "margin: 0;"
+        "}"
+        "form {"
+            "max-width: 400px;"
+            "margin: auto;"
+            "display: flex;"
+            "flex-direction: column;"
+            "gap: 12px;"
+            "padding:12px;"
+        "}"
+        "input {"
+            "padding: 12px;"
+            "font-size: 16px;"
+            "border: 10px solid #a81212;"
+            "border-radius: 8px;"
+            "width: 100%;"
+        "}"
+        "input[type=submit] {"
+            "background: #007bff;"
+            "color: white;"
+            "border: none;"
+        "}"
+        "input[type=submit]:hover {"
+            "background: #0056b3;"
+        "}"
+    "</style>"
+"</head>"
+"<body>"
+    "<h2 style='text-align:center;'>Nixie Clock</h2>"
+    "<form method='GET' action='/wifiform'>"
+        "<input type='submit' value='Change Wifi Settings'>"
+    "</form>"
+    "<form method='POST' action='/clockmode'>"
+        "<input type='submit' value='Change Clock mode'>"
+    "</form>"
+"</body>"
+"</html>";

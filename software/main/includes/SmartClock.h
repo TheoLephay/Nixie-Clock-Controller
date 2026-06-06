@@ -6,15 +6,15 @@
 
 extern TaskHandle_t clockTaskHandle;
 
-#define NTF_SWITCH_SHORT_PRESS 0u
-#define NTF_SWITCH_LONG_PRESS  1u
+#define NTF_CHANGE_MODE_PRESS 0u
+#define NTF_POWER_TUBES_PRESS  1u
 #define NTF_NTC_UPDATE         2u
 #define NTF_MAINTENANCE        3u
 #define NTF_TURN_ON            4u
 #define NTF_TURN_OFF           5u
 
-#define NTF_SWITCH_SHORT_PRESS_MSK (1u << NTF_SWITCH_SHORT_PRESS)
-#define NTF_SWITCH_LONG_PRESS_MSK  (1u << NTF_SWITCH_LONG_PRESS)
+#define NTF_CHANGE_MODE_MSK        (1u << NTF_CHANGE_MODE_PRESS)
+#define NTF_POWER_TUBES_MSK        (1u << NTF_POWER_TUBES_PRESS)
 #define NTF_NTC_UPDATE_MSK         (1u << NTF_NTC_UPDATE)
 #define NTF_MAINTENANCE_MSK        (1u << NTF_MAINTENANCE)
 #define NTF_TURN_ON_MSK            (1u << NTF_TURN_ON)

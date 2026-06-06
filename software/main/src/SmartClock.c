@@ -339,12 +339,12 @@ void Clock_Task(void *arg)
 
         if (notifReceived)
         {
-            if (notificationFlags & NTF_SWITCH_SHORT_PRESS_MSK)
+            if (notificationFlags & NTF_CHANGE_MODE_MSK)
             {
                 Clock_ModeChange();
             }
 
-            if (notificationFlags & NTF_SWITCH_LONG_PRESS_MSK)
+            if (notificationFlags & NTF_POWER_TUBES_MSK)
             {
                 if (clockState != CLOCK_STATE_POWER_OFF)
                 {

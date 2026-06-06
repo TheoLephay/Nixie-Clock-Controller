@@ -53,7 +53,7 @@ esp_timer_create_args_t switchTimerData = {
 
 void ModeSwitch_LongPressCb(void *arg)
 {
-    xTaskNotify(clockTaskHandle, NTF_SWITCH_LONG_PRESS_MSK, eSetBits);
+    xTaskNotify(clockTaskHandle, NTF_POWER_TUBES_MSK, eSetBits);
 }
 
 
@@ -87,7 +87,7 @@ void ModeSwitch_ProcessItr(GpioItr_t gpioItr)
     if (gpioItr.risingEdge)
     {
         esp_timer_start_once(switchTimerHandle, LONG_PRESS_US);
-        xTaskNotify(clockTaskHandle, NTF_SWITCH_SHORT_PRESS_MSK, eSetBits);
+        xTaskNotify(clockTaskHandle, NTF_CHANGE_MODE_MSK, eSetBits);
     }
     else
     {
