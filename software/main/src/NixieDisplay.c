@@ -7,7 +7,7 @@
 
 // I accidentally broke a pin of the 1st shift register.
 // The workaround is to connect a wire from the corresponding pad to the
-// next unused pin of the last shift register.
+// next unused pin of the last shift register. Remove this define for new boards.
 #define WORKAROUND
 
 // State of each cathode (idx 0 for comma of leftmost tube, idx 1 for digit 0...).
