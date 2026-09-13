@@ -5,6 +5,7 @@
 
 I wanted to make a 8-tube design to match Steins Gate's divergence meter and to have more display capabilities.
 
+This is build with original IN-14 (180VDC) Nixie tubes manufactured in the 70s in the Soviet Union.
 
 ## How to use
 
